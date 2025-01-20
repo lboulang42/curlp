@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Check if an argument is provided
+if [[ -z "$1" ]]; then
+    echo "Usage: $0 <path_to_proxy_file>"
+    exit 1
+fi
+
+PROXY_FILE="$1"
+TARGET_URL="http://wtfismyip.com"
+
+# Check if the file exists
+if [[ ! -f "$PROXY_FILE" ]]; then
+    echo "Error: The file $PROXY_FILE does not exist."
+    exit 1
+fi
+
+# Colors for output formatting
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Array to store failed proxies
+failed_proxies=()
+
+# Read the file line by line and test each proxy, file format should be ip:port:auth:pass\n...
+while IFS= read -r proxy; do
+    if [[ "$proxy" == *:*:*:* ]]; then
+        echo -n "Testing proxy: $proxy ... "
+        http_status=$(curlp "$proxy" -s -o /dev/null -w "%{http_code}" "$TARGET_URL" --max-time 10)
+
+        # Check if HTTP status is 200 (success)
+        if [[ "$http_status" == "200" ]]; then
+            echo -e "${GREEN}SUCCESS${NC}"
+        else
+            echo -e "${RED}FAIL (HTTP $http_status)${NC}"
+            failed_proxies+=("$proxy")
+        fi
+    else
+        echo -e "${RED}Invalid format for line: $proxy${NC}"
+    fi
+done < "$PROXY_FILE"
+
+# Display proxies that failed
+if [[ ${#failed_proxies[@]} -ne 0 ]]; then
+    echo -e "\n${RED}The following proxies failed:${NC}"
+    for proxy in "${failed_proxies[@]}"; do
+        echo -e "${RED}$proxy${NC}"
+    done
+else
+    echo -e "\n${GREEN}All proxies were successful.${NC}"
+fi
+
